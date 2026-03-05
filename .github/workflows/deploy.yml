@@ -117,19 +117,22 @@ jobs:
       - name: Deploy via SSM
         env:
           IMAGE: ${{ env.REGISTRY }}/${{ env.OWNER }}/${{ env.IMAGE_NAME }}:latest
+          # 💡 시크릿에서 직접 값을 가져오거나, 임시로 값을 넣으세요.
+          # 나중에는 ${{ secrets.CUSTOM_SECRET_WORD }} 처럼 관리하는 게 좋습니다.
+          SECRET_WORD: "abcd1234!!!"
         run: |
           SCRIPT=$(cat <<DEPLOY
-          docker pull $IMAGE
-          docker stop app1 2>/dev/null || true
-          docker rm app1 2>/dev/null || true
-          docker run -d --name app1 -p 8080:8080 $IMAGE
-          docker rmi \$(docker images -f dangling=true -q) 2>/dev/null || true
+          sudo docker pull $IMAGE
+          sudo docker stop app1 2>/dev/null || true
+          sudo docker rm app1 2>/dev/null || true
+          sudo docker run -d --name app1 -p 8080:8080 -e "CUSTOM_SECRETWORD=$SECRET_WORD" $IMAGE
+          sudo docker rmi \$(sudo docker images -f dangling=true -q) 2>/dev/null || true
           DEPLOY
           )
-
+          
           INSTANCE_ID="i-05517af4eb3ddf6c8"
           PARAMS=$(jq -n --arg cmd "$SCRIPT" '{"commands":[$cmd]}')
-
+          
           COMMAND_ID=$(aws ssm send-command \
             --instance-ids "$INSTANCE_ID" \
             --document-name "AWS-RunShellScript" \
@@ -137,26 +140,22 @@ jobs:
             --parameters "$PARAMS" \
             --query "Command.CommandId" \
             --output text)
-
+          
           echo "Command ID: $COMMAND_ID"
-
-          # 명령 완료 대기
+          
           aws ssm wait command-executed \
             --command-id "$COMMAND_ID" \
             --instance-id "$INSTANCE_ID" || true
-
-          # 결과 출력
+          
           OUTPUT=$(aws ssm get-command-invocation \
             --command-id "$COMMAND_ID" \
             --instance-id "$INSTANCE_ID")
-
+          
           STATUS=$(echo "$OUTPUT" | jq -r '.Status')
           echo "Status: $STATUS"
-          echo "--- stdout ---"
-          echo "$OUTPUT" | jq -r '.StandardOutputContent'
-          echo "--- stderr ---"
-          echo "$OUTPUT" | jq -r '.StandardErrorContent'
-
+          
           if [ "$STATUS" != "Success" ]; then
+            echo "--- stderr ---"
+            echo "$OUTPUT" | jq -r '.StandardErrorContent'
             exit 1
           fi

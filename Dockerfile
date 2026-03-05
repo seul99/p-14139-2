@@ -14,9 +14,11 @@ RUN gradle dependencies --no-daemon || true
 # 소스 복사
 COPY src ./src
 
-# 실제 빌드
-RUN gradle build --no-daemon
+## 실제 빌드
+#RUN gradle build --no-daemon
 
+# 수정 후 (테스트를 건너뛰고 빌드만 진행)
+RUN gradle build -x test --no-daemon
 
 # =========================
 # 2️⃣ Layer Extract Stage

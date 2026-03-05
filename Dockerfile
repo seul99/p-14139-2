@@ -17,7 +17,7 @@ COPY src ./src
 ## 실제 빌드
 #RUN gradle build --no-daemon
 
-
+RUN gradle bootJar --no-daemon -x test
 
 # =========================
 # 2️⃣ Layer Extract Stage
